@@ -11,17 +11,25 @@ FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
 def fetch_data():
     content = ""
 
-    # 1. Fetch NYT Top Stories & Op-Eds
-    # 'home' is the front page, 'opinion' is the Op-Ed section
-    sections = ["home", "opinion"]
+ # 1. Fetch NYT Sections
+    # 'home' = Front Page, 'opinion' = Op-Eds, 'food' = Food & Wine, 'style' = Style/Culture
+    sections = ["home", "opinion", "food", "style"]
+    
     for section in sections:
         try:
             url = f"https://api.nytimes.com/svc/topstories/v2/{section}.json?api-key={NYT_KEY}"
             data = requests.get(url).json().get('results', [])[:3]
-            title = "NYT: Global News" if section == "home" else "NYT: Op-Ed & Ideas"
-            content += format_section(title, data, "title", "abstract", "url")
-        except Exception as e:
-            print(f"Error fetching NYT {section}: {e}")
+            
+            # This logic gives each section a pretty title on your page
+            titles = {
+                "home": "NYT: Global News",
+                "opinion": "NYT: Op-Ed & Ideas",
+                "food": "NYT: Food & Wine",
+                "style": "NYT: Style & Culture"
+            }
+            display_title = titles.get(section, f"NYT: {section.capitalize()}")
+            
+            content += format_section(display_title, data, "title", "abstract", "url")
 
     # 2. Fetch BBC (RSS - No key needed)
     try:
