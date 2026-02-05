@@ -1,15 +1,18 @@
 import requests
 import feedparser
 import os
+import ssl
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+# Fix for SSL certificate issues on some servers
+if hasattr(ssl, '_create_unverified_context'):
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
 FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
 SPORTS_KEY = "123" 
-
-# Verified repo name for your Refresh link
 REPO_NAME = "MorningHeadlines" 
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
@@ -26,20 +29,31 @@ def fetch_data():
     return content
 
 def fetch_olympics():
+    """Fetches real-time headlines using the more reliable BBC Olympic feed"""
     try:
-        feed = feedparser.parse("https://www.olympics.com/en/news/rss.xml")
-        entries = [e for e in feed.entries if "2026" in e.title or "Milan" in e.title][:4]
+        # BBC is much more 'robot-friendly' than the official Olympic site
+        url = "https://feeds.bbci.co.uk/sport/olympics/rss.xml"
+        
+        # We add a 'User-Agent' so the website knows we are a helpful news bot
+        feed = feedparser.parse(url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
+        
+        if not feed.entries:
+            return ""
+
         html = "<h3 class='text-xs font-black uppercase tracking-widest text-red-600 mb-3 mt-6'>Milan Cortina 2026</h3>"
-        for entry in entries:
+        for entry in feed.entries[:4]:
             html += f"""
-            <div class='mb-3 p-3 bg-red-50 border border-red-100 shadow-sm rounded-lg'>
+            <div class='mb-3 p-3 bg-red-50 border border-red-100 shadow-sm rounded-lg hover:bg-red-100 transition-colors'>
                 <a href='{entry.link}' target='_blank' class='text-[11px] font-bold text-red-900 hover:underline leading-tight block'>
                     {entry.title}
                 </a>
+                <p class='text-[9px] text-red-700 mt-1 uppercase font-semibold'>Latest from BBC Sport</p>
             </div>
             """
-        return html if entries else ""
-    except: return ""
+        return html
+    except Exception as e:
+        print(f"Olympic Feed Error: {e}")
+        return ""
 
 def get_games(endpoint, title_label):
     leagues = [("4387", "NBA"), ("4380", "NHL")]
@@ -105,7 +119,7 @@ def build_page():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.tailwindcss.com"></script>
-        <title>The Daily Brief</title>
+        <title>The Olympic Brief</title>
     </head>
     <body class="bg-gray-100 text-gray-900 font-sans">
         <div class="max-w-6xl mx-auto bg-white min-h-screen shadow-xl">
@@ -123,7 +137,7 @@ def build_page():
                 </div>
                 <div class="md:col-span-1">
                     <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase tracking-tighter">Scoreboard</h2>
-                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming games.</p>"}
+                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming updates.</p>"}
                     <div class="mt-10 p-4 bg-gray-900 text-white rounded-lg">
                         <p class="text-[10px]">Updated: {now_eastern.strftime("%I:%M %p %Z")}</p>
                         <p class="text-[10px] mt-1 text-green-400 font-bold">● Live Connection</p>
@@ -139,4 +153,3 @@ def build_page():
 
 if __name__ == "__main__":
     build_page()
-    
