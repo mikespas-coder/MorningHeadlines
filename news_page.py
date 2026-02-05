@@ -9,7 +9,6 @@ FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
 
 def fetch_data():
     content = ""
-
     # 1. Fetch NYT Sections
     sections = ["home", "opinion", "food", "style"]
     
@@ -29,7 +28,7 @@ def fetch_data():
         except Exception as e:
             print(f"Error fetching NYT {section}: {e}")
 
-    # 2. Fetch BBC (RSS - No key needed)
+    # 2. Fetch BBC (RSS)
     try:
         bbc = feedparser.parse("http://feeds.bbci.co.uk/news/rss.xml").entries[:3]
         content += format_section("BBC World Report", bbc, "title", "summary", "link")
@@ -53,7 +52,6 @@ def format_section(header, items, t_key, s_key, l_key):
         title = item.get(t_key, "No Title")
         summary = item.get(s_key, "No description available.")[:200]
         link = item.get(l_key, "#")
-        
         html += f"""
         <div class='p-4 bg-white shadow-sm rounded-lg border border-gray-100 hover:shadow-md transition-shadow'>
             <a href='{link}' target='_blank' class='text-blue-700 hover:underline font-semibold text-lg'>{title}</a>
@@ -78,32 +76,26 @@ def build_page():
     </head>
     <body class="bg-gray-50 text-gray-900 font-sans p-4 md:p-10">
         <div class="max-w-3xl mx-auto">
-            
             <header class="mb-10 text-center border-b-4 border-black pb-4">
                 <h1 class="text-5xl font-serif font-black text-gray-900">The Daily Brief</h1>
                 <p class="text-gray-500 uppercase tracking-widest text-sm mt-3 font-bold">{date_str}</p>
-                
                 <a href="https://github.com/mikespas-coder/morning-briefing/actions/workflows/morning_brief.yml" 
                    target="_blank"
                    class="inline-block mt-4 px-4 py-1 border border-gray-800 text-xs font-bold uppercase hover:bg-black hover:text-white transition">
                    Request Fresh Update
                 </a>
             </header>
-
             {news_html}
-
             <footer class="mt-16 py-8 text-center text-gray-400 text-xs border-t border-gray-200">
-                Generated via GitHub Actions • Last Updated: {datetime.now().strftime("%H:%M:%S")} UTC
+                Last Updated: {datetime.now().strftime("%H:%M:%S")} UTC • Generated via GitHub Actions
             </footer>
         </div>
     </body>
     </html>
     """
-    
     with open("index.html", "w") as f:
         f.write(full_html)
     print("Page built successfully!")
 
-# THIS IS THE PART THAT WAS MISSING - IT TELLS PYTHON TO RUN THE BUILD
 if __name__ == "__main__":
     build_page()
