@@ -8,7 +8,7 @@ NYT_KEY = os.environ.get('NYT_KEY')
 FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
 SPORTS_KEY = "2" # Public test key for TheSportsDB
 
-# Your specific teams to highlight
+# Your specific teams to highlight - names verified for TheSportsDB
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_data():
