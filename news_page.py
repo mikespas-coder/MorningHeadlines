@@ -79,7 +79,7 @@ def build_page():
             <header class="mb-10 text-center border-b-4 border-black pb-4">
                 <h1 class="text-5xl font-serif font-black text-gray-900">The Daily Brief</h1>
                 <p class="text-gray-500 uppercase tracking-widest text-sm mt-3 font-bold">{date_str}</p>
-                <a href="https://github.com/mikespas-coder/morning-briefing/actions/workflows/morning_brief.yml" 
+                <a href="https://github.com/mikespas-coder/Morning-News-/actions/workflows/morning_brief.yml" 
                    target="_blank"
                    class="inline-block mt-4 px-4 py-1 border border-gray-800 text-xs font-bold uppercase hover:bg-black hover:text-white transition">
                    Request Fresh Update
