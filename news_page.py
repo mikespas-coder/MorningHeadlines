@@ -1,14 +1,14 @@
 import requests
 import feedparser
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
 FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
-SPORTS_KEY = "123" # Public test key for TheSportsDB
+SPORTS_KEY = "123" # Updated to the current working key
 
-# Your specific teams to highlight - names verified for TheSportsDB
+# Your specific teams to highlight
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_data():
@@ -23,42 +23,38 @@ def fetch_data():
         except: continue
     return content
 
-def fetch_sports():
-    """Fetches scores and filters for your specific teams"""
+def get_games(endpoint, title_label):
+    """General function to fetch games (last or next) for your teams"""
     # 4387 = NBA, 4380 = NHL
     leagues = [("4387", "NBA"), ("4380", "NHL")]
-    html = "<div class='space-y-6'>"
+    html = f"<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-3 mt-6'>{title_label}</h3>"
+    found_any = False
     
     for league_id, league_name in leagues:
         try:
-            url = f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventslast.php?id={league_id}"
-            games = requests.get(url).json().get('results', [])
-            
-            league_html = f"<h3 class='text-sm font-black uppercase tracking-tighter text-gray-400 mb-2'>{league_name} Tracker</h3>"
-            found_game = False
+            url = f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/{endpoint}?id={league_id}"
+            games = requests.get(url).json().get('results' if 'last' in endpoint else 'events', [])
             
             for g in games:
                 if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
-                    found_game = True
-                    # Highlight the score box if it's one of your teams
-                    league_html += f"""
-                    <div class='mb-2 p-3 bg-white border-l-4 border-blue-600 shadow-sm rounded-r-lg'>
+                    found_any = True
+                    # If it's a past game, show scores. If next, show time.
+                    score_or_time = f"{g.get('intHomeScore', '0')} - {g.get('intAwayScore', '0')}" if 'last' in endpoint else g.get('strTime', 'TBD')
+                    
+                    html += f"""
+                    <div class='mb-3 p-3 bg-white border border-gray-200 shadow-sm rounded-lg'>
                         <div class='flex justify-between text-xs font-bold'>
                             <span>{g['strHomeTeam']}</span>
-                            <span>{g['intHomeScore']}</span>
-                        </div>
-                        <div class='flex justify-between text-xs font-bold mt-1'>
+                            <span class='text-gray-400'>vs</span>
                             <span>{g['strAwayTeam']}</span>
-                            <span>{g['intAwayScore']}</span>
                         </div>
-                        <div class='text-[10px] text-gray-400 mt-2 uppercase'>{g['strStatus']}</div>
+                        <div class='text-center mt-2 font-black text-lg'>{score_or_time}</div>
+                        <div class='text-[10px] text-gray-400 text-center mt-1 uppercase'>{g.get('dateEvent', '')}</div>
                     </div>
                     """
-            if not found_game:
-                league_html += "<p class='text-xs text-gray-400 italic'>No recent games for your teams.</p>"
-            html += league_html
         except: continue
-    return html + "</div>"
+    
+    return html if found_any else ""
 
 def format_section(header, items, t_key, s_key, l_key):
     html = f"<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1'>{header}</h2>"
@@ -73,7 +69,12 @@ def format_section(header, items, t_key, s_key, l_key):
 
 def build_page():
     news_html = fetch_data()
-    sports_sidebar = fetch_sports()
+    
+    # New Sports Logic: Get Recent Scores AND Upcoming Schedule
+    yesterday_html = get_games("eventslast.php", "Yesterday's Results")
+    today_html = get_games("eventsnext.php", "Upcoming Games")
+    sports_sidebar = yesterday_html + today_html
+    
     date_str = datetime.now().strftime("%A, %B %d, %Y")
 
     full_html = f"""
@@ -100,15 +101,13 @@ def build_page():
                 <div class="md:col-span-3 border-r border-gray-100 pr-8">
                     {news_html}
                 </div>
-
                 <div class="md:col-span-1">
-                    <h2 class="text-lg font-black border-b-4 border-black mb-4">SCOREBOARD</h2>
-                    {sports_sidebar}
+                    <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase">Scoreboard</h2>
+                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming games for your teams.</p>"}
                     
                     <div class="mt-10 p-4 bg-gray-900 text-white rounded-lg">
-                        <h3 class="text-xs font-bold uppercase tracking-widest mb-2 text-gray-400">Status</h3>
                         <p class="text-[10px]">Updated: {datetime.now().strftime("%H:%M:%S")} UTC</p>
-                        <p class="text-[10px] mt-1 text-green-400">● Systems Active</p>
+                        <p class="text-[10px] mt-1 text-green-400">● Live Connection</p>
                     </div>
                 </div>
             </div>
