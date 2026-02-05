@@ -4,15 +4,13 @@ import os
 from datetime import datetime
 
 # --- CONFIGURATION ---
-# These pull from the "Secrets" you set up in GitHub
 NYT_KEY = os.environ.get('NYT_KEY')
 FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
 
 def fetch_data():
     content = ""
 
- # 1. Fetch NYT Sections
-    # 'home' = Front Page, 'opinion' = Op-Eds, 'food' = Food & Wine, 'style' = Style/Culture
+    # 1. Fetch NYT Sections
     sections = ["home", "opinion", "food", "style"]
     
     for section in sections:
@@ -20,7 +18,6 @@ def fetch_data():
             url = f"https://api.nytimes.com/svc/topstories/v2/{section}.json?api-key={NYT_KEY}"
             data = requests.get(url).json().get('results', [])[:3]
             
-            # This logic gives each section a pretty title on your page
             titles = {
                 "home": "NYT: Global News",
                 "opinion": "NYT: Op-Ed & Ideas",
@@ -28,8 +25,9 @@ def fetch_data():
                 "style": "NYT: Style & Culture"
             }
             display_title = titles.get(section, f"NYT: {section.capitalize()}")
-            
             content += format_section(display_title, data, "title", "abstract", "url")
+        except Exception as e:
+            print(f"Error fetching NYT {section}: {e}")
 
     # 2. Fetch BBC (RSS - No key needed)
     try:
@@ -49,11 +47,9 @@ def fetch_data():
     return content
 
 def format_section(header, items, t_key, s_key, l_key):
-    """Turns raw data into HTML cards with a clean look"""
     html = f"<h2 class='text-2xl font-bold mt-8 mb-4 border-b-2 border-gray-200 pb-2 text-gray-800'>{header}</h2>"
     html += "<div class='grid gap-4'>"
     for item in items:
-        # We use .get() to prevent the code from crashing if a piece of news is missing a description
         title = item.get(t_key, "No Title")
         summary = item.get(s_key, "No description available.")[:200]
         link = item.get(l_key, "#")
@@ -71,7 +67,6 @@ def build_page():
     news_html = fetch_data()
     date_str = datetime.now().strftime("%A, %B %d, %Y")
 
-    # This is the "Skeleton" of your site
     full_html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -94,10 +89,11 @@ def build_page():
                    Request Fresh Update
                 </a>
             </header>
+
             {news_html}
 
             <footer class="mt-16 py-8 text-center text-gray-400 text-xs border-t border-gray-200">
-                Generated via GitHub Actions • Automated Personal Curator • Last Updated: {datetime.now().strftime("%H:%M:%S")} UTC
+                Generated via GitHub Actions • Last Updated: {datetime.now().strftime("%H:%M:%S")} UTC
             </footer>
         </div>
     </body>
@@ -106,3 +102,8 @@ def build_page():
     
     with open("index.html", "w") as f:
         f.write(full_html)
+    print("Page built successfully!")
+
+# THIS IS THE PART THAT WAS MISSING - IT TELLS PYTHON TO RUN THE BUILD
+if __name__ == "__main__":
+    build_page()
