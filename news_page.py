@@ -1,14 +1,14 @@
 import requests
 import feedparser
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo # Standard in Python 3.9+ for automated timezones
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
 FINNHUB_KEY = os.environ.get('FINNHUB_KEY')
-SPORTS_KEY = "123" # Updated to the current working key
+SPORTS_KEY = "123" 
 
-# Your specific teams to highlight
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_data():
@@ -24,23 +24,48 @@ def fetch_data():
     return content
 
 def get_games(endpoint, title_label):
-    """General function to fetch games (last or next) for your teams"""
-    # 4387 = NBA, 4380 = NHL
     leagues = [("4387", "NBA"), ("4380", "NHL")]
     html = f"<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-3 mt-6'>{title_label}</h3>"
     found_any = False
     
+    # Define our target timezone
+    eastern_tz = ZoneInfo("America/New_York")
+    
     for league_id, league_name in leagues:
         try:
             url = f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/{endpoint}?id={league_id}"
-            games = requests.get(url).json().get('results' if 'last' in endpoint else 'events', [])
+            response = requests.get(url).json()
+            games = response.get('results' if 'last' in endpoint else 'events', [])
             
+            if not games: continue
+
             for g in games:
                 if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
                     found_any = True
-                    # If it's a past game, show scores. If next, show time.
-                    score_or_time = f"{g.get('intHomeScore', '0')} - {g.get('intAwayScore', '0')}" if 'last' in endpoint else g.get('strTime', 'TBD')
                     
+                    display_time = ""
+                    if 'last' in endpoint:
+                        # For past games, show the scores
+                        display_time = f"{g.get('intHomeScore', '0')} - {g.get('intAwayScore', '0')}"
+                    else:
+                        # AUTOMATED DST LOGIC FOR UPCOMING GAMES
+                        raw_date = g.get('dateEvent', '')
+                        raw_time = g.get('strTime', '')
+                        
+                        if raw_date and raw_time:
+                            try:
+                                # 1. Create a UTC datetime object from API data
+                                utc_dt = datetime.strptime(f"{raw_date} {raw_time}", "%Y-%m-%d %H:%M:%S")
+                                utc_dt = utc_dt.replace(tzinfo=ZoneInfo("UTC"))
+                                
+                                # 2. Convert to Eastern Time (Handles EST vs EDT automatically)
+                                local_dt = utc_dt.astimezone(eastern_tz)
+                                display_time = local_dt.strftime("%I:%M %p %Z") # Shows EST or EDT
+                            except:
+                                display_time = raw_time # Fallback
+                        else:
+                            display_time = "TBD"
+
                     html += f"""
                     <div class='mb-3 p-3 bg-white border border-gray-200 shadow-sm rounded-lg'>
                         <div class='flex justify-between text-xs font-bold'>
@@ -48,12 +73,11 @@ def get_games(endpoint, title_label):
                             <span class='text-gray-400'>vs</span>
                             <span>{g['strAwayTeam']}</span>
                         </div>
-                        <div class='text-center mt-2 font-black text-lg'>{score_or_time}</div>
+                        <div class='text-center mt-2 font-black text-lg'>{display_time}</div>
                         <div class='text-[10px] text-gray-400 text-center mt-1 uppercase'>{g.get('dateEvent', '')}</div>
                     </div>
                     """
         except: continue
-    
     return html if found_any else ""
 
 def format_section(header, items, t_key, s_key, l_key):
@@ -69,13 +93,13 @@ def format_section(header, items, t_key, s_key, l_key):
 
 def build_page():
     news_html = fetch_data()
-    
-    # New Sports Logic: Get Recent Scores AND Upcoming Schedule
-    yesterday_html = get_games("eventslast.php", "Yesterday's Results")
-    today_html = get_games("eventsnext.php", "Upcoming Games")
+    yesterday_html = get_games("eventslast.php", "Recent Results")
+    today_html = get_games("eventsnext.php", "Upcoming Schedule")
     sports_sidebar = yesterday_html + today_html
     
-    date_str = datetime.now().strftime("%A, %B %d, %Y")
+    # Use localized date for the header too
+    now_eastern = datetime.now(ZoneInfo("America/New_York"))
+    date_str = now_eastern.strftime("%A, %B %d, %Y")
 
     full_html = f"""
     <!DOCTYPE html>
@@ -103,10 +127,10 @@ def build_page():
                 </div>
                 <div class="md:col-span-1">
                     <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase">Scoreboard</h2>
-                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming games for your teams.</p>"}
+                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming games.</p>"}
                     
                     <div class="mt-10 p-4 bg-gray-900 text-white rounded-lg">
-                        <p class="text-[10px]">Updated: {datetime.now().strftime("%H:%M:%S")} UTC</p>
+                        <p class="text-[10px]">Updated: {now_eastern.strftime("%I:%M %p %Z")}</p>
                         <p class="text-[10px] mt-1 text-green-400">● Live Connection</p>
                     </div>
                 </div>
