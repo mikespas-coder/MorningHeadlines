@@ -71,6 +71,7 @@ def build_page():
     news_html = fetch_data()
     date_str = datetime.now().strftime("%A, %B %d, %Y")
 
+    # This is the "Skeleton" of your site
     full_html = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -82,15 +83,21 @@ def build_page():
     </head>
     <body class="bg-gray-50 text-gray-900 font-sans p-4 md:p-10">
         <div class="max-w-3xl mx-auto">
+            
             <header class="mb-10 text-center border-b-4 border-black pb-4">
                 <h1 class="text-5xl font-serif font-black text-gray-900">The Daily Brief</h1>
                 <p class="text-gray-500 uppercase tracking-widest text-sm mt-3 font-bold">{date_str}</p>
+                
+                <a href="https://github.com/mikespas-coder/morning-briefing/actions/workflows/morning_brief.yml" 
+                   target="_blank"
+                   class="inline-block mt-4 px-4 py-1 border border-gray-800 text-xs font-bold uppercase hover:bg-black hover:text-white transition">
+                   Request Fresh Update
+                </a>
             </header>
-            
             {news_html}
 
             <footer class="mt-16 py-8 text-center text-gray-400 text-xs border-t border-gray-200">
-                Generated via GitHub Actions • Automated Personal Curator
+                Generated via GitHub Actions • Automated Personal Curator • Last Updated: {datetime.now().strftime("%H:%M:%S")} UTC
             </footer>
         </div>
     </body>
@@ -99,7 +106,3 @@ def build_page():
     
     with open("index.html", "w") as f:
         f.write(full_html)
-    print("Landing page generated successfully!")
-
-if __name__ == "__main__":
-    build_page()
