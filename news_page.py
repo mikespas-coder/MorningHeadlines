@@ -2,7 +2,7 @@ import requests
 import feedparser
 import os
 from datetime import datetime
-from zoneinfo import ZoneInfo # Standard in Python 3.9+ for automated timezones
+from zoneinfo import ZoneInfo
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
@@ -23,48 +23,49 @@ def fetch_data():
         except: continue
     return content
 
+def fetch_olympics():
+    """Fetches real-time headlines from Milano Cortina 2026 coverage"""
+    try:
+        # Pulling from the official Olympics news feed
+        feed = feedparser.parse("https://www.olympics.com/en/news/rss.xml")
+        entries = [e for e in feed.entries if "2026" in e.title or "Milan" in e.title][:4]
+        
+        html = "<h3 class='text-xs font-black uppercase tracking-widest text-red-600 mb-3 mt-6'>Milan Cortina 2026</h3>"
+        for entry in entries:
+            html += f"""
+            <div class='mb-3 p-3 bg-red-50 border border-red-100 shadow-sm rounded-lg'>
+                <a href='{entry.link}' target='_blank' class='text-[11px] font-bold text-red-900 hover:underline leading-tight block'>
+                    {entry.title}
+                </a>
+            </div>
+            """
+        return html if entries else ""
+    except: return ""
+
 def get_games(endpoint, title_label):
     leagues = [("4387", "NBA"), ("4380", "NHL")]
     html = f"<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-3 mt-6'>{title_label}</h3>"
     found_any = False
-    
-    # Define our target timezone
     eastern_tz = ZoneInfo("America/New_York")
     
     for league_id, league_name in leagues:
         try:
             url = f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/{endpoint}?id={league_id}"
-            response = requests.get(url).json()
-            games = response.get('results' if 'last' in endpoint else 'events', [])
-            
-            if not games: continue
-
+            games = requests.get(url).json().get('results' if 'last' in endpoint else 'events', [])
             for g in games:
                 if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
                     found_any = True
-                    
                     display_time = ""
                     if 'last' in endpoint:
-                        # For past games, show the scores
                         display_time = f"{g.get('intHomeScore', '0')} - {g.get('intAwayScore', '0')}"
                     else:
-                        # AUTOMATED DST LOGIC FOR UPCOMING GAMES
-                        raw_date = g.get('dateEvent', '')
-                        raw_time = g.get('strTime', '')
-                        
+                        raw_date, raw_time = g.get('dateEvent', ''), g.get('strTime', '')
                         if raw_date and raw_time:
                             try:
-                                # 1. Create a UTC datetime object from API data
-                                utc_dt = datetime.strptime(f"{raw_date} {raw_time}", "%Y-%m-%d %H:%M:%S")
-                                utc_dt = utc_dt.replace(tzinfo=ZoneInfo("UTC"))
-                                
-                                # 2. Convert to Eastern Time (Handles EST vs EDT automatically)
-                                local_dt = utc_dt.astimezone(eastern_tz)
-                                display_time = local_dt.strftime("%I:%M %p %Z") # Shows EST or EDT
-                            except:
-                                display_time = raw_time # Fallback
-                        else:
-                            display_time = "TBD"
+                                utc_dt = datetime.strptime(f"{raw_date} {raw_time}", "%Y-%m-%d %H:%M:%S").replace(tzinfo=ZoneInfo("UTC"))
+                                display_time = utc_dt.astimezone(eastern_tz).strftime("%I:%M %p %Z")
+                            except: display_time = raw_time
+                        else: display_time = "TBD"
 
                     html += f"""
                     <div class='mb-3 p-3 bg-white border border-gray-200 shadow-sm rounded-lg'>
@@ -93,11 +94,13 @@ def format_section(header, items, t_key, s_key, l_key):
 
 def build_page():
     news_html = fetch_data()
+    olympics_html = fetch_olympics()
     yesterday_html = get_games("eventslast.php", "Recent Results")
     today_html = get_games("eventsnext.php", "Upcoming Schedule")
-    sports_sidebar = yesterday_html + today_html
     
-    # Use localized date for the header too
+    # Adding Olympics to the top of the sidebar
+    sports_sidebar = olympics_html + yesterday_html + today_html
+    
     now_eastern = datetime.now(ZoneInfo("America/New_York"))
     date_str = now_eastern.strftime("%A, %B %d, %Y")
 
@@ -112,27 +115,21 @@ def build_page():
     </head>
     <body class="bg-gray-100 text-gray-900 font-sans">
         <div class="max-w-6xl mx-auto bg-white min-h-screen shadow-xl">
-            <header class="p-6 border-b-8 border-black text-center">
-                <h1 class="text-6xl font-serif font-black tracking-tighter">THE DAILY BRIEF</h1>
-                <div class="flex justify-between items-center mt-4 text-xs font-bold uppercase tracking-widest border-t border-black pt-2">
+            <header class="p-6 border-b-8 border-black text-center bg-red-600 text-white">
+                <h1 class="text-6xl font-serif font-black tracking-tighter italic">THE OLYMPIC BRIEF</h1>
+                <div class="flex justify-between items-center mt-4 text-xs font-bold uppercase tracking-widest border-t border-white pt-2">
                     <span>Mikespas Edition</span>
                     <span>{date_str}</span>
-                    <a href="https://github.com/mikespas-coder/morning-briefing/actions" class="hover:underline text-blue-600">Refresh</a>
+                    <a href="https://github.com/mikespas-coder/morning-briefing/actions" class="hover:underline text-white">Refresh</a>
                 </div>
             </header>
-
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-6">
                 <div class="md:col-span-3 border-r border-gray-100 pr-8">
                     {news_html}
                 </div>
                 <div class="md:col-span-1">
                     <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase">Scoreboard</h2>
-                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming games.</p>"}
-                    
-                    <div class="mt-10 p-4 bg-gray-900 text-white rounded-lg">
-                        <p class="text-[10px]">Updated: {now_eastern.strftime("%I:%M %p %Z")}</p>
-                        <p class="text-[10px] mt-1 text-green-400">● Live Connection</p>
-                    </div>
+                    {sports_sidebar}
                 </div>
             </div>
         </div>
