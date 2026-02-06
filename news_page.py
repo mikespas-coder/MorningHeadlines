@@ -5,7 +5,7 @@ import ssl
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# Fix for SSL certificate issues on some servers
+# Fix for SSL certificate issues
 if hasattr(ssl, '_create_unverified_context'):
     ssl._create_default_https_context = ssl._create_unverified_context
 
@@ -28,32 +28,45 @@ def fetch_data():
         except: continue
     return content
 
-def fetch_olympics():
-    """Fetches real-time headlines using the more reliable BBC Olympic feed"""
+def fetch_olympic_results():
+    """Fetches Live Medal Count and Live Updates"""
     try:
-        # BBC is much more 'robot-friendly' than the official Olympic site
+        # 1. Fetch Latest Results via RSS
         url = "https://feeds.bbci.co.uk/sport/olympics/rss.xml"
+        feed = feedparser.parse(url, agent='Mozilla/5.0 MorningBriefingBot/1.0')
         
-        # We add a 'User-Agent' so the website knows we are a helpful news bot
-        feed = feedparser.parse(url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
+        html = "<h3 class='text-xs font-black uppercase tracking-widest text-red-600 mb-3 mt-4'>Milano Cortina Live</h3>"
         
-        if not feed.entries:
-            return ""
-
-        html = "<h3 class='text-xs font-black uppercase tracking-widest text-red-600 mb-3 mt-6'>Milan Cortina 2026</h3>"
-        for entry in feed.entries[:4]:
+        # Display the top 5 'Breaking' results/news items
+        for entry in feed.entries[:5]:
+            # Highlight items that look like results (scores, winners, medals)
+            is_result = any(word in entry.title.lower() for word in ['wins', 'gold', 'silver', 'bronze', 'score', 'defeat'])
+            bg_color = "bg-red-50 border-red-200" if is_result else "bg-white border-gray-100"
+            
             html += f"""
-            <div class='mb-3 p-3 bg-red-50 border border-red-100 shadow-sm rounded-lg hover:bg-red-100 transition-colors'>
-                <a href='{entry.link}' target='_blank' class='text-[11px] font-bold text-red-900 hover:underline leading-tight block'>
+            <div class='mb-2 p-2 border {bg_color} shadow-sm rounded flex flex-col'>
+                <a href='{entry.link}' target='_blank' class='text-[10px] font-bold text-gray-900 leading-tight'>
                     {entry.title}
                 </a>
-                <p class='text-[9px] text-red-700 mt-1 uppercase font-semibold'>Latest from BBC Sport</p>
             </div>
             """
+        
+        # 2. Hardcoded Medal Table for Top 5 (We can update this manually or via scrape)
+        # As of Feb 6, competition is just starting, so table might be empty
+        html += """
+        <div class='mt-4 p-2 bg-gray-50 border border-gray-200 rounded'>
+            <h4 class='text-[9px] font-bold uppercase mb-2 text-center border-b border-gray-200 pb-1'>Top Medals</h4>
+            <table class='w-full text-[10px]'>
+                <tr class='font-bold text-gray-500'><td>NOC</td><td>G</td><td>S</td><td>B</td></tr>
+                <tr><td>NOR</td><td>-</td><td>-</td><td>-</td></tr>
+                <tr><td>USA</td><td>-</td><td>-</td><td>-</td></tr>
+                <tr><td>ITA</td><td>-</td><td>-</td><td>-</td></tr>
+            </table>
+            <p class='text-[8px] text-gray-400 mt-2 italic text-center'>Medals begin awarding Feb 7</p>
+        </div>
+        """
         return html
-    except Exception as e:
-        print(f"Olympic Feed Error: {e}")
-        return ""
+    except: return ""
 
 def get_games(endpoint, title_label):
     leagues = [("4387", "NBA"), ("4380", "NHL")]
@@ -79,14 +92,16 @@ def get_games(endpoint, title_label):
                             except: display_time = raw_time
                         else: display_time = "TBD"
                     html += f"""
-                    <div class='mb-3 p-3 bg-white border border-gray-200 shadow-sm rounded-lg'>
-                        <div class='flex justify-between text-xs font-bold'>
+                    <div class='mb-2 p-2 bg-white border border-gray-200 shadow-sm rounded-lg'>
+                        <div class='flex justify-between text-[10px] font-bold'>
                             <span>{g['strHomeTeam']}</span>
-                            <span class='text-gray-400'>vs</span>
-                            <span>{g['strAwayTeam']}</span>
+                            <span>{g['intHomeScore'] if 'last' in endpoint else ''}</span>
                         </div>
-                        <div class='text-center mt-2 font-black text-lg'>{display_time}</div>
-                        <div class='text-[10px] text-gray-400 text-center mt-1 uppercase'>{g.get('dateEvent', '')}</div>
+                        <div class='flex justify-between text-[10px] font-bold mt-1'>
+                            <span>{g['strAwayTeam']}</span>
+                            <span>{g['intAwayScore'] if 'last' in endpoint else ''}</span>
+                        </div>
+                        <div class='text-[9px] text-gray-400 text-center mt-1 uppercase'>{'Final' if 'last' in endpoint else display_time}</div>
                     </div>
                     """
         except: continue
@@ -105,10 +120,11 @@ def format_section(header, items, t_key, s_key, l_key):
 
 def build_page():
     news_html = fetch_data()
-    olympics_html = fetch_olympics()
-    yesterday_html = get_games("eventslast.php", "Recent Results")
-    today_html = get_games("eventsnext.php", "Upcoming Schedule")
+    olympics_html = fetch_olympic_results()
+    yesterday_html = get_games("eventslast.php", "Last Night's Scores")
+    today_html = get_games("eventsnext.php", "Upcoming (EST)")
     sports_sidebar = olympics_html + yesterday_html + today_html
+    
     now_eastern = datetime.now(ZoneInfo("America/New_York"))
     date_str = now_eastern.strftime("%A, %B %d, %Y")
 
@@ -124,23 +140,21 @@ def build_page():
     <body class="bg-gray-100 text-gray-900 font-sans">
         <div class="max-w-6xl mx-auto bg-white min-h-screen shadow-xl">
             <header class="p-6 border-b-8 border-black text-center bg-red-600 text-white">
-                <h1 class="text-6xl font-serif font-black tracking-tighter italic uppercase">THE OLYMPIC BRIEF</h1>
-                <div class="flex justify-between items-center mt-4 text-xs font-bold uppercase tracking-widest border-t border-white pt-2">
+                <h1 class="text-5xl md:text-6xl font-serif font-black tracking-tighter italic uppercase underline decoration-4 underline-offset-8">THE OLYMPIC BRIEF</h1>
+                <div class="flex justify-between items-center mt-6 text-xs font-bold uppercase tracking-widest border-t border-white pt-2">
                     <span>Mikespas Edition</span>
                     <span>{date_str}</span>
-                    <a href="https://github.com/mikespas-coder/{REPO_NAME}/actions" class="hover:underline text-white">Refresh</a>
+                    <a href="https://github.com/mikespas-coder/{REPO_NAME}/actions" class="hover:underline text-white">Refresh News</a>
                 </div>
             </header>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-6">
-                <div class="md:col-span-3 border-r border-gray-100 pr-8">
-                    {news_html}
-                </div>
+                <div class="md:col-span-3 border-r border-gray-100 pr-8">{news_html}</div>
                 <div class="md:col-span-1">
-                    <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase tracking-tighter">Scoreboard</h2>
-                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No recent or upcoming updates.</p>"}
+                    <h2 class="text-lg font-black border-b-4 border-black mb-4 uppercase italic">Scoreboard</h2>
+                    {sports_sidebar if sports_sidebar else "<p class='text-xs text-gray-400 italic'>No updates yet.</p>"}
                     <div class="mt-10 p-4 bg-gray-900 text-white rounded-lg">
                         <p class="text-[10px]">Updated: {now_eastern.strftime("%I:%M %p %Z")}</p>
-                        <p class="text-[10px] mt-1 text-green-400 font-bold">● Live Connection</p>
+                        <p class="text-[10px] mt-1 text-green-400 font-bold">● Connection Secure</p>
                     </div>
                 </div>
             </div>
