@@ -148,21 +148,24 @@ def build_layout(content, sidebar, is_archive=False):
     """
 
 def build_page():
-    # 1. Gather all sidebar data first
+    # Fetch Data
+    main_news = fetch_data()
+    archive_news = fetch_epstein_archive()
+    
+    # Get sidebar data
     olympics = fetch_olympic_dashboard()
     yesterday = get_games("eventslast.php", "Last Night")
     today = get_games("eventsnext.php", "Upcoming")
     sidebar = olympics + yesterday + today
 
-    # 2. Build Main Page
-    main_news = fetch_data()
-    with open("index.html", "w") as f:
+    # GENERATE FILE 1: index.html
+    with open("index.html", "w", encoding="utf-8") as f:
         f.write(build_layout(main_news, sidebar, is_archive=False))
+        f.flush() # Forces the robot to finish writing
         
-    # 3. Build Archive Page
-    archive_news = fetch_epstein_archive()
-    with open("epstein.html", "w") as f:
+    # GENERATE FILE 2: epstein.html
+    with open("epstein.html", "w", encoding="utf-8") as f:
         f.write(build_layout(archive_news, sidebar, is_archive=True))
+        f.flush() # Forces the robot to finish writing
 
-if __name__ == "__main__":
-    build_page()
+    print("Success: Both index.html and epstein.html have been generated.")
