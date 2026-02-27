@@ -1,4 +1,4 @@
-\import requests
+import requests
 import feedparser
 import os
 from datetime import datetime
@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
-SPORTS_KEY = "123" 
+SPORTS_KEY = "123"
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_nyt_data():
@@ -26,7 +26,7 @@ def fetch_nyt_data():
 def fetch_buffalo_news():
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WGRZ)</h2>"
     try:
-        feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo" 
+        feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo"
         feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
         if not feed.entries:
             feed = feedparser.parse("https://www.wgrz.com/feeds/rss/news", agent='Mozilla/5.0')
@@ -53,28 +53,27 @@ def fetch_weather():
     except: return ""
 
 def fetch_sabres_schedule():
-    """Specifically pulls upcoming Buffalo Sabres games"""
     html = "<h3 class='text-xs font-black uppercase tracking-widest text-yellow-600 mb-2 mt-6'>Sabres Schedule</h3>"
     try:
-        # NHL League ID is 4380
         res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventsnext.php?id=4380").json()
         games = res.get('events', [])
         found = 0
-        for g in games:
-            if (g['strHomeTeam'] == "Buffalo Sabres" or g['strAwayTeam'] == "Buffalo Sabres") and found < 3:
-                opp = g['strAwayTeam'] if g['strHomeTeam'] == "Buffalo Sabres" else g['strHomeTeam']
-                loc = "vs" if g['strHomeTeam'] == "Buffalo Sabres" else "@"
-                date_obj = datetime.strptime(g['dateEvent'], '%Y-%m-%d')
-                clean_date = date_obj.strftime('%b %d')
-                html += f"""
-                <div class='mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px]'>
-                    <div class='flex justify-between font-bold'>
-                        <span>{loc} {opp}</span>
-                        <span class='text-yellow-800'>{clean_date}</span>
+        if games:
+            for g in games:
+                if (g['strHomeTeam'] == "Buffalo Sabres" or g['strAwayTeam'] == "Buffalo Sabres") and found < 3:
+                    opp = g['strAwayTeam'] if g['strHomeTeam'] == "Buffalo Sabres" else g['strHomeTeam']
+                    loc = "vs" if g['strHomeTeam'] == "Buffalo Sabres" else "@"
+                    date_obj = datetime.strptime(g['dateEvent'], '%Y-%m-%d')
+                    clean_date = date_obj.strftime('%b %d')
+                    html += f"""
+                    <div class='mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px]'>
+                        <div class='flex justify-between font-bold'>
+                            <span>{loc} {opp}</span>
+                            <span class='text-yellow-800'>{clean_date}</span>
+                        </div>
                     </div>
-                </div>
-                """
-                found += 1
+                    """
+                    found += 1
         return html if found > 0 else ""
     except: return ""
 
@@ -86,9 +85,10 @@ def fetch_sidebar():
         try:
             res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventslast.php?id={lid}").json()
             games = res.get('results', [])
-            for g in games:
-                if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
-                    html += f"<div class='mb-1 p-2 bg-white border border-gray-100 text-[10px] flex justify-between'><span>{g['strHomeTeam']}</span><span class='font-bold'>{g['intHomeScore']}-{g['intAwayScore']}</span></div>"
+            if games:
+                for g in games:
+                    if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
+                        html += f"<div class='mb-1 p-2 bg-white border border-gray-100 text-[10px] flex justify-between'><span>{g['strHomeTeam']}</span><span class='font-bold'>{g['intHomeScore']}-{g['intAwayScore']}</span></div>"
         except: continue
     return html
 
