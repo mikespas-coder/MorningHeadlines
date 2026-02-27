@@ -10,7 +10,6 @@ SPORTS_KEY = "123"
 MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_nyt_data():
-    """Fetches Top Stories from NYT"""
     sections = ["home", "nyregion", "opinion"]
     content = ""
     for section in sections:
@@ -25,12 +24,15 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
-    """Fetches local Buffalo news from WBFO (BTPM)"""
+    """Fetches local Buffalo news with a User-Agent to prevent blocks"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WBFO)</h2>"
     try:
-        # Fetching from WBFO/NPR Buffalo feed
-        feed = feedparser.parse("https://www.wbfo.org/index.rss")
-        for entry in feed.entries[:5]: # Top 5 local stories
+        # Added 'agent' to identify the script and bypass server blocks
+        feed = feedparser.parse("https://www.wbfo.org/index.rss", agent='MorningBriefingBot/1.0')
+        if not feed.entries:
+            return html + "<p class='text-sm text-gray-400 italic'>No recent stories found in the feed.</p>"
+            
+        for entry in feed.entries[:5]:
             html += f"""
             <div class='mb-6'>
                 <a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a>
@@ -39,12 +41,27 @@ def fetch_buffalo_news():
             """
         return html
     except:
-        return "<p class='text-sm italic text-gray-400'>Buffalo news temporarily unavailable.</p>"
+        return html + "<p class='text-sm italic text-gray-400'>Buffalo news temporarily unavailable.</p>"
+
+def fetch_weather():
+    """Fetches simple weather for Buffalo via NWS open data"""
+    try:
+        # Pulling current conditions for Buffalo (BUF)
+        res = requests.get("https://api.weather.gov/gridpoints/BUF/78,43/forecast").json()
+        today = res['properties']['periods'][0]
+        return f"""
+        <div class='mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg'>
+            <h3 class='text-xs font-black uppercase tracking-widest text-blue-800 mb-1'>Buffalo Weather</h3>
+            <p class='text-lg font-bold'>{today['temperature']}°{today['temperatureUnit']}</p>
+            <p class='text-[10px] text-blue-600 font-medium uppercase'>{today['shortForecast']}</p>
+        </div>
+        """
+    except: return ""
 
 def fetch_sidebar():
-    """Sports Scoreboard"""
-    html = "<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-2 mt-4'>NBA/NHL Scores</h3>"
-    for lid in ["4387", "4380"]: # NBA and NHL
+    html = fetch_weather()
+    html += "<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-2 mt-6'>NBA/NHL Scores</h3>"
+    for lid in ["4387", "4380"]:
         try:
             res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventslast.php?id={lid}").json()
             games = res.get('results', [])
@@ -76,7 +93,9 @@ def build_layout(news_content, local_content, sidebar):
                     {sidebar}
                 </div>
             </div>
-            <footer class="p-6 bg-gray-900 text-white text-center text-[10px] uppercase font-bold">Updated: {now.strftime("%I:%M %p %Z")}</footer>
+            <footer class="p-6 bg-gray-900 text-white text-center text-[10px] uppercase font-bold tracking-widest">
+                Updated: {now.strftime("%I:%M %p %Z")} • Buffalo, NY
+            </footer>
         </div>
     </body>
     </html>
