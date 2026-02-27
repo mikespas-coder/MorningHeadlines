@@ -1,4 +1,3 @@
-
 import requests
 import feedparser
 import os
@@ -25,30 +24,35 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
-    """Fetches local news using the NPR-syndicated WBFO feed for BTPM"""
-    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WBFO)</h2>"
+    """Fetches local Buffalo news from WGRZ (Channel 2) as a more reliable source"""
+    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WGRZ)</h2>"
     try:
-        # This is the active RSS endpoint for WBFO's local news stories
-        feed_url = "https://www.npr.org/rss/rss.php?id=1148" 
-        
-        # We use a browser-like 'User-Agent' so BTPM/NPR doesn't block the GitHub bot
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        # WGRZ (NBC Buffalo) provides a highly reliable news feed
+        feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo" 
+        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
         
         if not feed.entries:
-            return html + "<p class='text-sm text-gray-400 italic'>Updates currently refreshing from BTPM...</p>"
+            # Fallback to general Buffalo news if local is empty
+            feed = feedparser.parse("https://www.wgrz.com/feeds/rss/news", agent='Mozilla/5.0')
+
+        if not feed.entries:
+            return html + "<p class='text-sm text-gray-400 italic font-serif'>Searching for latest Buffalo updates...</p>"
             
         for entry in feed.entries[:5]:
-            # Some entries use 'description' instead of 'summary'
-            summary = entry.get('summary', entry.get('description', 'Click to read the full story.'))
+            # Clean up the summary text
+            summary = entry.get('summary', entry.get('description', 'Click to read full local coverage.'))
+            # Remove any trailing 'Read More' or HTML tags if present
+            clean_summary = summary.split('<')[0].strip()
+            
             html += f"""
             <div class='mb-6'>
                 <a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a>
-                <p class='text-gray-600 text-sm mt-1 leading-snug'>{summary[:160]}...</p>
+                <p class='text-gray-600 text-sm mt-1 leading-snug font-serif'>{clean_summary[:160]}...</p>
             </div>
             """
         return html
     except:
-        return html + "<p class='text-sm italic text-gray-400'>Buffalo news feed temporarily unavailable.</p>"
+        return html + "<p class='text-sm italic text-gray-400'>Local news feed currently updating.</p>"
 
 def fetch_weather():
     try:
