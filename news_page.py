@@ -6,17 +6,23 @@ from zoneinfo import ZoneInfo
 
 # --- CONFIGURATION ---
 NYT_KEY = os.environ.get('NYT_KEY')
-SPORTS_KEY = "123"
-MY_TEAMS = ["Buffalo Sabres", "Chicago Bulls", "Denver Nuggets", "New York Knicks"]
 
 def fetch_nyt_data():
-    sections = ["home", "nyregion", "opinion"]
+    sections = ["home", "nyregion", "opinion", "food", "style"]
     content = ""
     for section in sections:
         try:
             url = f"https://api.nytimes.com/svc/topstories/v2/{section}.json?api-key={NYT_KEY}"
-            data = requests.get(url).json().get('results', [])[:3]
-            titles = {"home": "Global News", "nyregion": "New York State", "opinion": "Op-Ed"}
+            # Added a 5-second timeout to prevent the script from hanging
+            response = requests.get(url, timeout=5)
+            data = response.json().get('results', [])[:3]
+            titles = {
+                "home": "Global News", 
+                "nyregion": "New York State", 
+                "opinion": "Op-Ed",
+                "food": "Food & Wine",
+                "style": "Style & Culture"
+            }
             content += f"<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>{titles.get(section, section)}</h2>"
             for item in data:
                 content += f"<div class='mb-6'><a href='{item['url']}' target='_blank' class='text-blue-800 font-bold hover:underline'>{item['title']}</a><p class='text-gray-600 text-sm mt-1'>{item.get('abstract', '')[:140]}...</p></div>"
@@ -24,24 +30,32 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
+    """Focuses on Buffalo Local News via WGRZ"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WGRZ)</h2>"
     try:
+        # Direct RSS feed for Channel 2 Buffalo
         feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo"
         feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
-        if not feed.entries:
-            feed = feedparser.parse("https://www.wgrz.com/feeds/rss/news", agent='Mozilla/5.0')
+        
         if not feed.entries:
             return html + "<p class='text-sm text-gray-400 italic font-serif'>Searching for latest Buffalo updates...</p>"
-        for entry in feed.entries[:5]:
+            
+        for entry in feed.entries[:8]: # Increased to 8 local stories
             summary = entry.get('summary', entry.get('description', 'Click to read full local coverage.'))
             clean_summary = summary.split('<')[0].strip()
-            html += f"<div class='mb-6'><a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a><p class='text-gray-600 text-sm mt-1 leading-snug font-serif'>{clean_summary[:160]}...</p></div>"
+            html += f"""
+            <div class='mb-6'>
+                <a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a>
+                <p class='text-gray-600 text-sm mt-1 leading-snug font-serif'>{clean_summary[:180]}...</p>
+            </div>
+            """
         return html
-    except: return html + "<p class='text-sm italic text-gray-400'>Local news feed currently updating.</p>"
+    except:
+        return html + "<p class='text-sm italic text-gray-400'>Local news feed currently updating.</p>"
 
 def fetch_weather():
     try:
-        res = requests.get("https://api.weather.gov/gridpoints/BUF/78,43/forecast").json()
+        res = requests.get("https://api.weather.gov/gridpoints/BUF/78,43/forecast", timeout=5).json()
         today = res['properties']['periods'][0]
         return f"""
         <div class='mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg'>
@@ -52,47 +66,7 @@ def fetch_weather():
         """
     except: return ""
 
-def fetch_sabres_schedule():
-    html = "<h3 class='text-xs font-black uppercase tracking-widest text-yellow-600 mb-2 mt-6'>Sabres Schedule</h3>"
-    try:
-        res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventsnext.php?id=4380").json()
-        games = res.get('events', [])
-        found = 0
-        if games:
-            for g in games:
-                if (g['strHomeTeam'] == "Buffalo Sabres" or g['strAwayTeam'] == "Buffalo Sabres") and found < 3:
-                    opp = g['strAwayTeam'] if g['strHomeTeam'] == "Buffalo Sabres" else g['strHomeTeam']
-                    loc = "vs" if g['strHomeTeam'] == "Buffalo Sabres" else "@"
-                    date_obj = datetime.strptime(g['dateEvent'], '%Y-%m-%d')
-                    clean_date = date_obj.strftime('%b %d')
-                    html += f"""
-                    <div class='mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px]'>
-                        <div class='flex justify-between font-bold'>
-                            <span>{loc} {opp}</span>
-                            <span class='text-yellow-800'>{clean_date}</span>
-                        </div>
-                    </div>
-                    """
-                    found += 1
-        return html if found > 0 else ""
-    except: return ""
-
-def fetch_sidebar():
-    html = fetch_weather()
-    html += fetch_sabres_schedule()
-    html += "<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-2 mt-6'>Recent Scores</h3>"
-    for lid in ["4387", "4380"]:
-        try:
-            res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventslast.php?id={lid}").json()
-            games = res.get('results', [])
-            if games:
-                for g in games:
-                    if g['strHomeTeam'] in MY_TEAMS or g['strAwayTeam'] in MY_TEAMS:
-                        html += f"<div class='mb-1 p-2 bg-white border border-gray-100 text-[10px] flex justify-between'><span>{g['strHomeTeam']}</span><span class='font-bold'>{g['intHomeScore']}-{g['intAwayScore']}</span></div>"
-        except: continue
-    return html
-
-def build_layout(news_content, local_content, sidebar):
+def build_layout(news_content, local_content, weather_sidebar):
     now = datetime.now(ZoneInfo("America/New_York"))
     date_str = now.strftime("%A, %B %d, %Y")
     return f"""
@@ -111,7 +85,11 @@ def build_layout(news_content, local_content, sidebar):
                     {news_content}
                 </div>
                 <div class="md:col-span-1 border-l border-gray-100 pl-6">
-                    {sidebar}
+                    {weather_sidebar}
+                    <div class='mt-10 p-4 bg-gray-50 border border-gray-100 rounded text-[10px] text-gray-400'>
+                        Buffalo news provided by WGRZ (Channel 2). 
+                        Global updates via The New York Times.
+                    </div>
                 </div>
             </div>
             <footer class="p-6 bg-gray-900 text-white text-center text-[10px] uppercase font-bold tracking-widest">
@@ -123,8 +101,9 @@ def build_layout(news_content, local_content, sidebar):
     """
 
 if __name__ == "__main__":
-    sidebar = fetch_sidebar()
+    weather = fetch_weather()
     nyt_news = fetch_nyt_data()
     buffalo_news = fetch_buffalo_news()
+    
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(build_layout(nyt_news, buffalo_news, sidebar))
+        f.write(build_layout(nyt_news, buffalo_news, weather))
