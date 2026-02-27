@@ -1,4 +1,4 @@
-import requests
+\import requests
 import feedparser
 import os
 from datetime import datetime
@@ -24,35 +24,20 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
-    """Fetches local Buffalo news from WGRZ (Channel 2) as a more reliable source"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WGRZ)</h2>"
     try:
-        # WGRZ (NBC Buffalo) provides a highly reliable news feed
         feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo" 
         feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
-        
         if not feed.entries:
-            # Fallback to general Buffalo news if local is empty
             feed = feedparser.parse("https://www.wgrz.com/feeds/rss/news", agent='Mozilla/5.0')
-
         if not feed.entries:
             return html + "<p class='text-sm text-gray-400 italic font-serif'>Searching for latest Buffalo updates...</p>"
-            
         for entry in feed.entries[:5]:
-            # Clean up the summary text
             summary = entry.get('summary', entry.get('description', 'Click to read full local coverage.'))
-            # Remove any trailing 'Read More' or HTML tags if present
             clean_summary = summary.split('<')[0].strip()
-            
-            html += f"""
-            <div class='mb-6'>
-                <a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a>
-                <p class='text-gray-600 text-sm mt-1 leading-snug font-serif'>{clean_summary[:160]}...</p>
-            </div>
-            """
+            html += f"<div class='mb-6'><a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a><p class='text-gray-600 text-sm mt-1 leading-snug font-serif'>{clean_summary[:160]}...</p></div>"
         return html
-    except:
-        return html + "<p class='text-sm italic text-gray-400'>Local news feed currently updating.</p>"
+    except: return html + "<p class='text-sm italic text-gray-400'>Local news feed currently updating.</p>"
 
 def fetch_weather():
     try:
@@ -67,9 +52,36 @@ def fetch_weather():
         """
     except: return ""
 
+def fetch_sabres_schedule():
+    """Specifically pulls upcoming Buffalo Sabres games"""
+    html = "<h3 class='text-xs font-black uppercase tracking-widest text-yellow-600 mb-2 mt-6'>Sabres Schedule</h3>"
+    try:
+        # NHL League ID is 4380
+        res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventsnext.php?id=4380").json()
+        games = res.get('events', [])
+        found = 0
+        for g in games:
+            if (g['strHomeTeam'] == "Buffalo Sabres" or g['strAwayTeam'] == "Buffalo Sabres") and found < 3:
+                opp = g['strAwayTeam'] if g['strHomeTeam'] == "Buffalo Sabres" else g['strHomeTeam']
+                loc = "vs" if g['strHomeTeam'] == "Buffalo Sabres" else "@"
+                date_obj = datetime.strptime(g['dateEvent'], '%Y-%m-%d')
+                clean_date = date_obj.strftime('%b %d')
+                html += f"""
+                <div class='mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-[10px]'>
+                    <div class='flex justify-between font-bold'>
+                        <span>{loc} {opp}</span>
+                        <span class='text-yellow-800'>{clean_date}</span>
+                    </div>
+                </div>
+                """
+                found += 1
+        return html if found > 0 else ""
+    except: return ""
+
 def fetch_sidebar():
     html = fetch_weather()
-    html += "<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-2 mt-6'>NBA/NHL Scores</h3>"
+    html += fetch_sabres_schedule()
+    html += "<h3 class='text-xs font-black uppercase tracking-widest text-blue-600 mb-2 mt-6'>Recent Scores</h3>"
     for lid in ["4387", "4380"]:
         try:
             res = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTS_KEY}/eventslast.php?id={lid}").json()
@@ -114,6 +126,5 @@ if __name__ == "__main__":
     sidebar = fetch_sidebar()
     nyt_news = fetch_nyt_data()
     buffalo_news = fetch_buffalo_news()
-    
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(build_layout(nyt_news, buffalo_news, sidebar))
