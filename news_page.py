@@ -13,7 +13,6 @@ def fetch_nyt_data():
     for section in sections:
         try:
             url = f"https://api.nytimes.com/svc/topstories/v2/{section}.json?api-key={NYT_KEY}"
-            # Added a 5-second timeout to prevent the script from hanging
             response = requests.get(url, timeout=5)
             data = response.json().get('results', [])[:3]
             titles = {
@@ -30,17 +29,18 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
-    """Focuses on Buffalo Local News via WGRZ"""
-    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WGRZ)</h2>"
+    """Fetches local Buffalo news via WIVB (News 4) - more stable for automation"""
+    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WIVB)</h2>"
     try:
-        # Direct RSS feed for Channel 2 Buffalo
-        feed_url = "https://www.wgrz.com/feeds/rss/news/local/buffalo"
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) MorningBriefingBot/1.0')
+        # WIVB News 4 Buffalo Feed
+        feed_url = "https://www.wivb.com/news/local-news/buffalo/feed/"
+        # Using a Safari/Mac User-Agent to bypass bot filters
+        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15')
         
         if not feed.entries:
-            return html + "<p class='text-sm text-gray-400 italic font-serif'>Searching for latest Buffalo updates...</p>"
+            return html + "<p class='text-sm text-gray-400 italic font-serif'>Buffalo updates are currently being refreshed...</p>"
             
-        for entry in feed.entries[:8]: # Increased to 8 local stories
+        for entry in feed.entries[:8]:
             summary = entry.get('summary', entry.get('description', 'Click to read full local coverage.'))
             clean_summary = summary.split('<')[0].strip()
             html += f"""
@@ -86,10 +86,6 @@ def build_layout(news_content, local_content, weather_sidebar):
                 </div>
                 <div class="md:col-span-1 border-l border-gray-100 pl-6">
                     {weather_sidebar}
-                    <div class='mt-10 p-4 bg-gray-50 border border-gray-100 rounded text-[10px] text-gray-400'>
-                        Buffalo news provided by WGRZ (Channel 2). 
-                        Global updates via The New York Times.
-                    </div>
                 </div>
             </div>
             <footer class="p-6 bg-gray-900 text-white text-center text-[10px] uppercase font-bold tracking-widest">
