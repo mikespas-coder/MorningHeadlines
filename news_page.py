@@ -34,29 +34,38 @@ def fetch_buffalo_news():
         return html
     except: return html
 
-def fetch_aljazeera_news():
-    """New section for Al Jazeera English International coverage"""
-    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase text-orange-700'>International Focus (Al Jazeera)</h2>"
+def fetch_middle_east_conflict():
+    """Specific filter for Middle East Conflict news via Al Jazeera"""
+    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>Conflict Update: Middle East</h2>"
+    
+    # War-related keywords to filter out sports/fluff
+    war_keywords = ['war', 'strike', 'missile', 'gaza', 'israel', 'lebanon', 'hezbollah', 'iran', 'bomb', 'blast', 'houthi', 'military', 'death', 'killed', 'idf', 'hamas', 'red sea', 'attack']
+    
     try:
-        # Official Al Jazeera English RSS Feed
-        feed_url = "https://www.aljazeera.com/xml/rss/all.xml"
+        # Targeting the Middle East specific regional feed
+        feed_url = "https://www.aljazeera.com/xml/rss/middle-east.xml"
         feed = feedparser.parse(feed_url, agent='Mozilla/5.0')
         
-        if not feed.entries:
-            return "" # Fail silently if feed is down
-            
-        for entry in feed.entries[:5]:
-            # Al Jazeera usually provides a good summary in the 'summary' or 'description' tag
-            summary = entry.get('summary', entry.get('description', ''))
-            clean_summary = summary.split('<')[0].strip()[:150]
-            html += f"""
-            <div class='mb-6'>
-                <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline'>{entry.title}</a>
-                <p class='text-gray-600 text-xs mt-1 font-serif leading-snug'>{clean_summary}...</p>
-            </div>
-            """
+        found_stories = 0
+        for entry in feed.entries:
+            title_lower = entry.title.lower()
+            # Only include the story if it contains one of our keywords
+            if any(keyword in title_lower for keyword in war_keywords) and found_stories < 6:
+                summary = entry.get('summary', entry.get('description', ''))
+                clean_summary = summary.split('<')[0].strip()[:180]
+                html += f"""
+                <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
+                    <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{entry.title}</a>
+                    <p class='text-gray-700 text-xs font-serif leading-snug'>{clean_summary}...</p>
+                </div>
+                """
+                found_stories += 1
+        
+        if found_stories == 0:
+            return html + "<p class='text-xs text-gray-400 italic'>No conflict-specific updates in the current hour.</p>"
         return html
-    except: return ""
+    except:
+        return ""
 
 def fetch_weather():
     try:
@@ -65,7 +74,7 @@ def fetch_weather():
         return f"<div class='mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg'><h3 class='text-xs font-black uppercase tracking-widest text-blue-800 mb-1'>Buffalo Weather</h3><p class='text-lg font-bold'>{today['temperature']}°{today['temperatureUnit']}</p><p class='text-[10px] text-blue-600 font-medium uppercase'>{today['shortForecast']}</p></div>"
     except: return ""
 
-def build_layout(news_content, local_content, aljazeera_content, weather_sidebar):
+def build_layout(news_content, local_content, middle_east_content, weather_sidebar):
     now = datetime.now(ZoneInfo("America/New_York"))
     return f"""
     <!DOCTYPE html>
@@ -75,12 +84,12 @@ def build_layout(news_content, local_content, aljazeera_content, weather_sidebar
         <div class="max-w-6xl mx-auto bg-white min-h-screen shadow-2xl">
             <header class="p-8 bg-black text-white text-center">
                 <h1 class="text-5xl font-serif font-black italic tracking-tighter uppercase mb-2">The Daily Brief</h1>
-                <p class="text-xs font-bold uppercase tracking-widest opacity-80">{now.strftime("%A, %B %d, %Y")}</p>
+                <p class="text-xs font-bold uppercase tracking-widest opacity-80">{now.strftime("%A, %B % d, %Y")}</p>
             </header>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-6 md:p-12">
                 <div class="md:col-span-3">
                     {local_content}
-                    {aljazeera_content}
+                    {middle_east_content}
                     {news_content}
                 </div>
                 <div class="md:col-span-1 border-l border-gray-100 pl-6">
@@ -96,7 +105,7 @@ if __name__ == "__main__":
     weather = fetch_weather()
     nyt = fetch_nyt_data()
     buffalo = fetch_buffalo_news()
-    aljazeera = fetch_aljazeera_news()
+    me_conflict = fetch_middle_east_conflict()
     
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(build_layout(nyt, buffalo, aljazeera, weather))
+        f.write(build_layout(nyt, buffalo, me_conflict, weather))
