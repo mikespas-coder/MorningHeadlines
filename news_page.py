@@ -23,46 +23,58 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
+    """WIVB Buffalo News - confirmed working source"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WIVB)</h2>"
     try:
         feed_url = "https://www.wivb.com/news/local-news/buffalo/feed/"
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15')
+        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
         if not feed.entries:
-            return html + "<p class='text-sm text-gray-400 italic font-serif'>Refreshing local updates...</p>"
-        for entry in feed.entries[:5]:
-            html += f"<div class='mb-6'><a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a></div>"
+            return html + "<p class='text-sm text-gray-400 italic'>Refreshing local updates...</p>"
+        for entry in feed.entries[:6]:
+            html += f"<div class='mb-4'><a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a></div>"
         return html
     except: return html
 
 def fetch_middle_east_conflict():
-    """Specific filter for Middle East Conflict news via Al Jazeera"""
+    """Refined Al Jazeera Conflict Focus"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>Conflict Update: Middle East</h2>"
     
-    # War-related keywords to filter out sports/fluff
-    war_keywords = ['war', 'strike', 'missile', 'gaza', 'israel', 'lebanon', 'hezbollah', 'iran', 'bomb', 'blast', 'houthi', 'military', 'death', 'killed', 'idf', 'hamas', 'red sea', 'attack']
+    # Very broad keyword list to catch any mention of the regional crisis
+    war_keywords = [
+        'war', 'strike', 'missile', 'gaza', 'israel', 'lebanon', 'hezbollah', 
+        'iran', 'bomb', 'blast', 'houthi', 'military', 'attack', 'border', 
+        'conflict', 'hostage', 'ceasefire', 'idf', 'hamas', 'palestin', 'tel aviv', 'beirut'
+    ]
     
     try:
-        # Targeting the Middle East specific regional feed
         feed_url = "https://www.aljazeera.com/xml/rss/middle-east.xml"
         feed = feedparser.parse(feed_url, agent='Mozilla/5.0')
         
-        found_stories = 0
+        if not feed.entries:
+            return ""
+
+        found_stories = []
         for entry in feed.entries:
-            title_lower = entry.title.lower()
-            # Only include the story if it contains one of our keywords
-            if any(keyword in title_lower for keyword in war_keywords) and found_stories < 6:
-                summary = entry.get('summary', entry.get('description', ''))
-                clean_summary = summary.split('<')[0].strip()[:180]
-                html += f"""
-                <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
-                    <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{entry.title}</a>
-                    <p class='text-gray-700 text-xs font-serif leading-snug'>{clean_summary}...</p>
-                </div>
-                """
-                found_stories += 1
+            # Check title and summary for war keywords
+            text_to_scan = (entry.title + " " + entry.get('summary', '')).lower()
+            if any(k in text_to_scan for k in war_keywords):
+                found_stories.append(entry)
+            
+            if len(found_stories) >= 6:
+                break
+
+        # SAFETY OVERRIDE: If the filter found nothing, just use the latest 4 stories anyway
+        final_list = found_stories if found_stories else feed.entries[:4]
         
-        if found_stories == 0:
-            return html + "<p class='text-xs text-gray-400 italic'>No conflict-specific updates in the current hour.</p>"
+        for entry in final_list:
+            summary = entry.get('summary', entry.get('description', ''))
+            clean_summary = summary.split('<')[0].strip()[:180]
+            html += f"""
+            <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
+                <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{entry.title}</a>
+                <p class='text-gray-700 text-xs font-serif leading-snug'>{clean_summary}...</p>
+            </div>
+            """
         return html
     except:
         return ""
@@ -84,7 +96,7 @@ def build_layout(news_content, local_content, middle_east_content, weather_sideb
         <div class="max-w-6xl mx-auto bg-white min-h-screen shadow-2xl">
             <header class="p-8 bg-black text-white text-center">
                 <h1 class="text-5xl font-serif font-black italic tracking-tighter uppercase mb-2">The Daily Brief</h1>
-                <p class="text-xs font-bold uppercase tracking-widest opacity-80">{now.strftime("%A, %B % d, %Y")}</p>
+                <p class="text-xs font-bold uppercase tracking-widest opacity-80">{now.strftime("%A, %B %d, %Y")}</p>
             </header>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-6 md:p-12">
                 <div class="md:col-span-3">
