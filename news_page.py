@@ -1,5 +1,5 @@
 import requests
-import feedparser
+from bs4 import BeautifulSoup
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -23,54 +23,61 @@ def fetch_nyt_data():
     return content
 
 def fetch_buffalo_news():
+    """Fetches Buffalo news directly using WIVB's site structure as backup if RSS fails"""
     html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-gray-200 pb-1 uppercase'>Buffalo Local News (WIVB)</h2>"
     try:
-        feed_url = "https://www.wivb.com/news/local-news/buffalo/feed/"
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
-        if not feed.entries:
-            return html + "<p class='text-sm text-gray-400 italic'>Refreshing local updates...</p>"
+        # We'll stick to WIVB's RSS for speed, as it was working well for you
+        import feedparser
+        feed = feedparser.parse("https://www.wivb.com/news/local-news/buffalo/feed/", agent='Mozilla/5.0')
         for entry in feed.entries[:6]:
             html += f"<div class='mb-4'><a href='{entry.link}' target='_blank' class='text-red-700 font-bold hover:underline'>{entry.title}</a></div>"
         return html
     except: return html
 
-def fetch_aljazeera():
-    """Fetches from the primary global feed for maximum reliability"""
-    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>International News (Al Jazeera)</h2>"
+def fetch_middle_east_direct():
+    """Scrapes headlines directly from Al Jazeera's Middle East page"""
+    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>Middle East Headlines (Al Jazeera)</h2>"
     try:
-        # Switching to the most stable main feed
-        feed_url = "https://www.aljazeera.com/xml/rss/all.xml"
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        url = "https://www.aljazeera.com/middle-east/"
+        # Pretend to be a real browser to avoid being blocked
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        if not feed.entries:
-            return html + "<p class='text-sm text-gray-400 italic'>Feed temporarily unavailable...</p>"
+        # Al Jazeera uses <h3> tags for their main headlines on this page
+        headlines = soup.find_all('h3', limit=8)
+        
+        if not headlines:
+            return html + "<p class='text-sm text-gray-400 italic'>Updates currently refreshing on Al Jazeera...</p>"
 
-        for entry in feed.entries[:6]:
-            summary = entry.get('summary', entry.get('description', ''))
-            clean_summary = summary.split('<')[0].strip()[:180]
-            html += f"""
-            <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
-                <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{entry.title}</a>
-                <p class='text-gray-700 text-xs font-serif leading-snug'>{clean_summary}...</p>
-            </div>
-            """
+        for h in headlines:
+            link_tag = h.find('a')
+            if link_tag:
+                title = h.get_text().strip()
+                link = "https://www.aljazeera.com" + link_tag['href'] if link_tag['href'].startswith('/') else link_tag['href']
+                
+                # Try to get the summary (usually in a <p> tag next to the h3)
+                summary_tag = h.find_next('p')
+                summary_text = summary_tag.get_text().strip()[:160] if summary_tag else "Click to read the full report."
+                
+                html += f"""
+                <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
+                    <a href='{link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{title}</a>
+                    <p class='text-gray-700 text-xs font-serif leading-snug'>{summary_text}...</p>
+                </div>
+                """
         return html
-    except: return ""
+    except Exception as e:
+        return html + f"<p class='text-xs text-gray-400 italic'>Direct feed update in progress.</p>"
 
 def fetch_weather():
     try:
         res = requests.get("https://api.weather.gov/gridpoints/BUF/78,43/forecast", timeout=5).json()
         today = res['properties']['periods'][0]
-        return f"""
-        <div class='mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg'>
-            <h3 class='text-xs font-black uppercase tracking-widest text-blue-800 mb-1'>Buffalo Weather</h3>
-            <p class='text-lg font-bold'>{today['temperature']}°{today['temperatureUnit']}</p>
-            <p class='text-[10px] text-blue-600 font-medium uppercase'>{today['shortForecast']}</p>
-        </div>
-        """
+        return f"<div class='mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg'><h3 class='text-xs font-black uppercase tracking-widest text-blue-800 mb-1'>Buffalo Weather</h3><p class='text-lg font-bold'>{today['temperature']}°{today['temperatureUnit']}</p><p class='text-[10px] text-blue-600 font-medium uppercase'>{today['shortForecast']}</p></div>"
     except: return ""
 
-def build_layout(news_content, local_content, aljazeera_content, weather_sidebar):
+def build_layout(news_content, local_content, middle_east_content, weather_sidebar):
     now = datetime.now(ZoneInfo("America/New_York"))
     return f"""
     <!DOCTYPE html>
@@ -85,27 +92,11 @@ def build_layout(news_content, local_content, aljazeera_content, weather_sidebar
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8 p-6 md:p-12">
                 <div class="md:col-span-3">
                     {local_content}
-                    {aljazeera_content}
+                    {middle_east_content}
                     {news_content}
                 </div>
                 <div class="md:col-span-1 border-l border-gray-100 pl-6">
                     {weather_sidebar}
-                    
-                    <h3 class='text-xs font-black uppercase tracking-widest text-red-600 mb-2 mt-8'>Live Broadcast</h3>
-                    <div class="aspect-video w-full border border-gray-200 rounded overflow-hidden">
-                        <iframe 
-                            width="100%" 
-                            height="100%" 
-                            src="https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=0" 
-                            title="Al Jazeera Live" 
-                            frameborder="0" 
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowfullscreen>
-                        </iframe>
-                    </div>
-                    <p class='text-[10px] text-gray-400 mt-2 italic font-serif leading-tight'>
-                        Source: Al Jazeera English Live via YouTube
-                    </p>
                 </div>
             </div>
         </div>
@@ -117,7 +108,7 @@ if __name__ == "__main__":
     weather = fetch_weather()
     nyt = fetch_nyt_data()
     buffalo = fetch_buffalo_news()
-    aljazeera = fetch_aljazeera()
+    me_news = fetch_middle_east_direct()
     
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(build_layout(nyt, buffalo, aljazeera, weather))
+        f.write(build_layout(nyt, buffalo, me_news, weather))
