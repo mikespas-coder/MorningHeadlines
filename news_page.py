@@ -35,40 +35,23 @@ def fetch_buffalo_news():
         return html
     except: return html
 
-def fetch_middle_east_conflict():
-    """Refined Al Jazeera Conflict Focus"""
-    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>Conflict Update: Middle East</h2>"
-    
-    # Very broad keyword list to catch any mention of the regional crisis
-    war_keywords = [
-        'war', 'strike', 'missile', 'gaza', 'israel', 'lebanon', 'hezbollah', 
-        'iran', 'bomb', 'blast', 'houthi', 'military', 'attack', 'border', 
-        'conflict', 'hostage', 'ceasefire', 'idf', 'hamas', 'palestin', 'tel aviv', 'beirut'
-    ]
-    
+def fetch_middle_east_direct():
+    """Direct, unfiltered Middle East regional news from Al Jazeera"""
+    html = "<h2 class='text-xl font-serif font-bold mt-8 mb-4 border-b border-orange-200 pb-1 uppercase text-orange-800'>Middle East Regional News</h2>"
     try:
+        # Targeting the dedicated Middle East desk feed
         feed_url = "https://www.aljazeera.com/xml/rss/middle-east.xml"
-        feed = feedparser.parse(feed_url, agent='Mozilla/5.0')
+        feed = feedparser.parse(feed_url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
         
         if not feed.entries:
-            return ""
+            return html + "<p class='text-sm text-gray-400 italic'>Updates currently refreshing from Al Jazeera...</p>"
 
-        found_stories = []
-        for entry in feed.entries:
-            # Check title and summary for war keywords
-            text_to_scan = (entry.title + " " + entry.get('summary', '')).lower()
-            if any(k in text_to_scan for k in war_keywords):
-                found_stories.append(entry)
-            
-            if len(found_stories) >= 6:
-                break
-
-        # SAFETY OVERRIDE: If the filter found nothing, just use the latest 4 stories anyway
-        final_list = found_stories if found_stories else feed.entries[:4]
-        
-        for entry in final_list:
+        # No filters. Just give the user the top 6 stories on the ME desk.
+        for entry in feed.entries[:6]:
             summary = entry.get('summary', entry.get('description', ''))
+            # Clean up the summary by removing HTML tags
             clean_summary = summary.split('<')[0].strip()[:180]
+            
             html += f"""
             <div class='mb-6 p-3 bg-orange-50/50 border-l-4 border-orange-600 rounded-r'>
                 <a href='{entry.link}' target='_blank' class='text-gray-900 font-bold hover:underline block leading-tight mb-1'>{entry.title}</a>
@@ -117,7 +100,7 @@ if __name__ == "__main__":
     weather = fetch_weather()
     nyt = fetch_nyt_data()
     buffalo = fetch_buffalo_news()
-    me_conflict = fetch_middle_east_conflict()
+    middle_east = fetch_middle_east_direct()
     
     with open("index.html", "w", encoding="utf-8") as f:
-        f.write(build_layout(nyt, buffalo, me_conflict, weather))
+        f.write(build_layout(nyt, buffalo, middle_east, weather))
