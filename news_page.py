@@ -4,6 +4,7 @@ import os
 import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import Optional
 
 # --- LOGGING ---
 logging.basicConfig(
@@ -76,7 +77,7 @@ def fetch_bbc_middle_east() -> list[dict]:
         return []
 
 
-def fetch_weather() -> dict | None:
+def fetch_weather() -> Optional[dict]:
     """Fetch Buffalo weather from NWS. Returns a dict or None on failure."""
     try:
         res = requests.get(
@@ -157,7 +158,7 @@ def render_bbc(articles: list[dict]) -> str:
     return html
 
 
-def render_weather(weather: dict | None) -> str:
+def render_weather(weather: Optional[dict]) -> str:
     if not weather:
         return "<p class='text-sm text-gray-400 italic mt-6'>Weather unavailable.</p>"
     return (
