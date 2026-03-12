@@ -2,7 +2,7 @@ name: Update Morning Briefing
 
 on:
   schedule:
-    - cron: '0 13 * * *'   # 8:00 AM EST (UTC-5) / 9:00 AM EDT (UTC-4)
+    - cron: '0 12 * * *'   # 7:00 AM EST (UTC-5)
     - cron: '0 1 * * *'    # 8:00 PM EST (UTC-5) / 9:00 PM EDT (UTC-4)
   workflow_dispatch:         # Manual trigger from Actions tab
 
